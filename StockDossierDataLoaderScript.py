@@ -127,6 +127,7 @@ def futures_data_loader(futuresCollection, futureFileName):
             csvFile = csv.reader(file, delimiter=',')
             successRecordCounter = 0
             successInsertCounter = 0
+            dict = {}
             if validateFuturesHeader(csvFile):
                 for lines in csvFile:
                     if lines[0] == 'FUTSTK':
@@ -136,25 +137,32 @@ def futures_data_loader(futuresCollection, futureFileName):
                                     8] != '' and lines[9] != '' and lines[11] != '' and \
                                 lines[13] != '' and lines[14] != '' and lines[15] != '':
                             futuresDocument = futuresColumnParser(lines)
-                            try:
-                                res = futuresCollection.insert_one(futuresDocument)
-                                if res.inserted_id:
-                                    successRecordCounter += 1
-                                    successInsertCounter += 1
-                            except:
-                                print("failed - ", futuresDocument)
+                            if futuresDocument['symbol'] in dict:
+                                dict[futuresDocument['symbol']]['contracts'] += futuresDocument['contracts']
+                                dict[futuresDocument['symbol']]['open_interest'] += futuresDocument['open_interest']
+                                dict[futuresDocument['symbol']]['change_in_oi'] += futuresDocument['change_in_oi']
+                            else:
+                                dict[futuresDocument['symbol']] = futuresDocument
+                            successRecordCounter += 1
             else:
                 print('Header mismatch - futures !!')
+        try:
+            for record in dict:
+                res = futuresCollection.insert_one(dict[record])
+                if res.inserted_id:
+                    successInsertCounter += 1
+        except:
+            print("failed - ", futuresDocument)
+            return False
     except:
         print('error in file ' + futureFileName)
+        return False
     finally:
         file.close()
         print('total futures records in files: ', successRecordCounter)
         print('total futures inserted records in db: ', successInsertCounter)
 
-    if successInsertCounter == successRecordCounter:
-        return True
-    return False
+    return True
 
 
 if __name__ == '__main__':
